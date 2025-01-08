@@ -165,12 +165,12 @@ __global__ void __launch_bounds__(NUM_THREADS) matmulKernel2(int M, int N, int K
     }
 }
 
-
+template<int BM, int BN, int BK, int NUM_THREADS>
 void runKernel2(int M, int N, int K, bf16 *A, bf16 *B, bf16 *C) {
-    constexpr int BM = 64;
-    constexpr int BN = 64;
-    constexpr int BK = 64;
-    constexpr int NUM_THREADS = 128;
+    // constexpr int BM = BM;
+    // constexpr int BN = BN;
+    // constexpr int BK = BK;
+    // constexpr int NUM_THREADS = NUM_THREADS;
 
     if (!d_tma_map_A) {
         d_tma_map_A = allocate_and_create_tensor_map<BM, BK>(A, M / BM, K / BK);

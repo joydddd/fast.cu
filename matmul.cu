@@ -38,6 +38,7 @@ void cudaCheck(cudaError_t error, const char *file, int line) {
 #include "examples/matmul/matmul_9.cuh"
 #include "examples/matmul/matmul_10.cuh"
 #include "examples/matmul/matmul_11.cuh"
+#include "matmul.h"
 
 std::default_random_engine generator(69);
 cublasHandle_t cublas_handle;
@@ -53,6 +54,14 @@ void runCublasGemmBF16(int M, int N, int K, bf16 *A, bf16 *B, bf16 *C) {
   }
 }
 
+typedef struct {
+  int BM;
+  int BN;
+  int BK;
+  int NUM_THREADS;
+  int QSIZE;
+} KernelParams;
+
 void run_kernel(int kernel_num, int M, int N, int K, bf16 *A, bf16 *B, bf16 *C, int *DB = nullptr) {
   switch (kernel_num) {
     case 0:
@@ -62,19 +71,20 @@ void run_kernel(int kernel_num, int M, int N, int K, bf16 *A, bf16 *B, bf16 *C, 
       runKernel1(M, N, K, A, B, C);
       break;
     case 2:
-      runKernel2(M, N, K, A, B, C);
+      runKernel2<64, 64, 64, 128>(M, N, K, A, B, C);
       break;
     case 3:
-      runKernel3(M, N, K, A, B, C, DB);
+      runKernel3<128, 128, 64, 128>(M, N, K, A, B, C, DB);
       break;
     case 4:
-      runKernel4(M, N, K, A, B, C, DB);
+      runKernel4<128, 128, 64, 128*2, 5>(M, N, K, A, B, C, DB);
+      // runKernel4<128, 256, 64, 128*3, 3>(M, N, K, A, B, C, DB);
       break;
     case 5:
-      runKernel5(M, N, K, A, B, C, DB);
+      runKernel5<128, 256, 64, 128*3, 3>(M, N, K, A, B, C, DB);
       break;
     case 6:
-      runKernel6(M, N, K, A, B, C, DB);
+      runKernel6<128, 256, 64, 128*3, 3, 114>(M, N, K, A, B, C, DB);
       break;
     case 7:
       runKernel7(M, N, K, A, B, C, DB);
@@ -92,7 +102,14 @@ void run_kernel(int kernel_num, int M, int N, int K, bf16 *A, bf16 *B, bf16 *C, 
       runKernel11(M, N, K, A, B, C, DB);
       break;
   }
+  cudaDeviceSynchronize();
 }
+
+void run_matmul(MM_kernel_params &params, cudaStream_t stream){
+  run_kernel(params.kernel_num, params.M, params.N, params.K, params.A_ptr, params.B_ptr, params.C_ptr, params.DB_ptr);
+}
+
+
 int yo = 0;
 void randomize_matrix(bf16 *mat, int N) {
   std::normal_distribution<float> distribution(0, 1);
@@ -121,6 +138,35 @@ bool verify_matrix(bf16 *matRef, bf16 *matOut, int N) {
 __global__ void warmupKernel() {
   __shared__ int s[100];
   s[0] += s[1];
+}
+
+typedef struct {
+  bf16* A, B, C, C_ref;
+  int* DB;
+} tensors_t;
+
+void generate_inputs(int m, int n, int k, tensors_t &device_tensors, tensors_t &host_tensors) {
+  host_tensors.A = (bf16 *)malloc(sizeof(bf16) * m * n);
+  host_tensors.B = (bf16 *)malloc(sizeof(bf16) * n * k);
+  host_tensors.C = (bf16 *)malloc(sizeof(bf16) * m * k);
+  host_tensors.C_ref = (bf16 *)malloc(sizeof(bf16) * m * k);
+  host_tensors.DB = (int *)malloc(sizeof(int) * m * 128);
+
+  cudaCheck(cudaMalloc((void **)&device_tensors.DB, sizeof(int) * m * 128));
+
+  randomize_matrix(host_tensors.A, m * n);
+  randomize_matrix(host_tensors.B, n * k);
+  randomize_matrix(host_tensors.C, m * k);
+  
+  cudaCheck(cudaMalloc((void **)&device_tensors.A, sizeof(bf16) * m * n));
+  cudaCheck(cudaMalloc((void **)&device_tensors.B, sizeof(bf16) * n * k));
+  cudaCheck(cudaMalloc((void **)&device_tensors.C, sizeof(bf16) * m * k));
+  cudaCheck(cudaMalloc((void **)&device_tensors.C_ref, sizeof(bf16) * m * k));
+  
+  cudaCheck(cudaMemcpy(device_tensors.A, host_tensors.A, sizeof(bf16) * m * n,
+  cudaMemcpyHostToDevice));
+  cudaCheck(cudaMemcpy(device_tensors.B, host_tensors.B, sizeof(bf16) * n * k,
+      cudaMemcpyHostToDevice));
 }
 
 int main() {
@@ -163,9 +209,22 @@ int main() {
   cudaCheck(cudaMemcpy(dB, B, sizeof(bf16) * max_size * max_size,
       cudaMemcpyHostToDevice));
 
-  int repeat_times = 8;
-  bool run_verif = true;
-  for (int kernel_num : {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}) {
+  int repeat_times = 20;
+  bool run_verif = false;
+  for (int kernel_num : {
+    0
+    // ,1 
+    // ,2
+    ,3
+    ,4 
+    ,5 
+    ,6 
+    // ,7 
+    // ,8 
+    // ,9 
+    // ,10 
+    // ,11
+    }) {
     // for (int kernel_num : {0, 11}) {
     // Give the GPU some rest to avoid thermal throttling
     sleep(5);

@@ -28,8 +28,14 @@ sum: sum.cu
 sumprofile: sum
 	$(NCU_COMMAND) -o $@ -f $(OUT_DIR)/$^
 
-matmul: matmul.cu 
+matmul: matmul.cu
 	$(NVCC_BASE) $^ $(CUDA_OUTPUT_FILE)
+
+libmatmul: matmul.cu
+	$(NVCC_BASE) -Xcompiler=-fPIC -shared $^ -o $(OUT_DIR)/libmatmul.so
+
+run: libmatmul
+	$(OUT_DIR)/$^
 
 matmulprofile: matmul
 	$(NCU_COMMAND) -o $@ -f $(OUT_DIR)/$^

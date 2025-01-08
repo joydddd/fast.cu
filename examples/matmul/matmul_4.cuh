@@ -361,13 +361,13 @@ __global__  __launch_bounds__(NUM_THREADS) void  matmulKernel4(int M, int N, int
     }
 }
 
-
+template<int BM, int BN, int BK, int NUM_THREADS, int QSIZE>
 void runKernel4(int M, int N, int K, bf16 *A, bf16 *B, bf16 *C, int *DB) {
-    constexpr int BM = 128;
-    constexpr int BN = 128;
-    constexpr int BK = 64;
-    constexpr int NUM_THREADS = 128*2;
-    constexpr int QSIZE = 5;
+    // constexpr int BM = 128;
+    // constexpr int BN = 128;
+    // constexpr int BK = 64;
+    // constexpr int NUM_THREADS = 128*2;
+    // constexpr int QSIZE = 5;
 
     if (!d_tma_map_A) {
         d_tma_map_A = allocate_and_create_tensor_map<BM, BK>(A, M / BM, K / BK);
