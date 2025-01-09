@@ -1,2 +1,4 @@
 out/
 *.ncu-rep
+*.o
+*.o.d

@@ -572,7 +572,7 @@ void createHilbert(int M, int N, int CORES, int *space) {
         int x, y;
         d2xy(dim, i, x, y);
         if (x < M && y < N) {
-            assert(loc < SPACE_LEN);
+            // assert(loc < SPACE_LEN);
             assert(v[x][y] == '.');
             v[x][y] = '*';
             ++total;

@@ -5,7 +5,6 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
 
-#include <cutlass/numeric_types.h>
 
 #include "matmul.h"
 
@@ -76,7 +75,7 @@ void set_params_mmprop(MM_kernel_params &params,
     // Set the dimensions.
     params.M = m;
     params.N = n;
-    params.K = k
+    params.K = k;
 
     params.kernel_id = k_id;
 
@@ -107,18 +106,18 @@ mm_fwd(at::Tensor &a,   // (m, n)
     int n = a.size(1);
     int k = b.size(1);
     
-    auto opts = q.options();
-    auto q_type = q.scalar_type();
-    at::Tensor out;
+    auto opts = a.options();
+    auto d_type = a.scalar_type();
+    at::Tensor c;
     if (c_.has_value()) {
         c = c_.value();
     } else {
-        c = torch::empty_like((m, k), opts.dtype(q_type));
+        c = torch::empty({m, k}, opts.dtype(d_type));
     }
 
     // Otherwise the kernel will be launched from cuda:0 device
     // Cast to char to avoid compiler warning about narrowing
-    at::cuda::CUDAGuard device_guard{(char)q.get_device()};
+    at::cuda::CUDAGuard device_guard{(char)a.get_device()};
 
     MM_kernel_params params;
     set_params_mmprop(params, m, n, k, a, b, c, kernel_id, sm_margin);
