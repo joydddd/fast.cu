@@ -2,3 +2,7 @@ out/
 *.ncu-rep
 *.o
 *.o.d
+.vscode/
+*.json
+*.egg-info/
+build/

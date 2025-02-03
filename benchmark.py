@@ -85,8 +85,6 @@ def _write_ninja_file(path,
     if with_cuda:
         flags.append(f'cuda_cflags = {" ".join(cuda_cflags)}')
         flags.append(f'cuda_post_cflags = {" ".join(cuda_post_cflags)}')
-        print(cuda_cflags)
-        print(cuda_post_cflags)
         cuda_cflags_sm90a = ['-gencode=arch=compute_90a,code=sm_90a' if s == '-gencode=arch=compute_90,code=sm_90' else s for s in cuda_cflags]
         flags.append(f'cuda_cflags_sm90a = {" ".join(cuda_cflags_sm90a)}')
         cuda_post_cflags_sm80 = [s if s != 'arch=compute_90a,code=sm_90a' else 'arch=compute_80,code=sm_80' for s in cuda_post_cflags]
@@ -199,23 +197,59 @@ torch.utils.cpp_extension._write_ninja_file = _write_ninja_file
 matmul_cuda = load(
     name='matmul_cuda', 
     sources=['matmul_api.cpp', 'matmul.cu'],
-    extra_include_paths=['examples/matmul', '/usr/local/cuda-12.6/include'],
-    extra_cuda_cflags=['-std=c++17 -O3 -DNDEBUG -w --expt-relaxed-constexpr --expt-extended-lambda --use_fast_math -Xcompiler=-fPIE -Xcompiler=-Wno-psabi -Xcompiler=-fno-strict-aliasing -lineinfo ', 
+    extra_include_paths=['examples/matmul'],
+    extra_cuda_cflags=['-std=c++17 -O3 -DNDEBUG -w --expt-relaxed-constexpr --expt-extended-lambda --use_fast_math -Xcompiler=-Wno-psabi -Xcompiler=-fno-strict-aliasing -lineinfo -g', 
         "-U__CUDA_NO_HALF_OPERATORS__",
         "-U__CUDA_NO_HALF_CONVERSIONS__",
         "-U__CUDA_NO_BFLOAT16_OPERATORS__",
         "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
         "-U__CUDA_NO_BFLOAT162_OPERATORS__",
         "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",],
-    extra_ldflags=['-Wl,--no-as-needed', '-lm'],
-    with_cuda=True
+    extra_ldflags=['-Wl,--no-as-needed', '-lm', '-lcublas', '-lcuda'],
+    with_cuda=True,
+    verbose=True,
     )
+
+import torch.profiler as profiler
+from torch.profiler import ProfilerActivity
 
 
 M, N, K = 8192, 8192, 8192
-a = torch.rand(M, N).cuda()
-b = torch.rand(N, K).cuda()
+torch.manual_seed(0)
+a = torch.rand(M, N, dtype=torch.bfloat16).cuda()
+b = torch.rand(N, K, dtype=torch.bfloat16).cuda()
+# print("a", a)
+# print("b", b)
 
-c = matmul_cuda.fwd(a, b)
-torch.testing.assert_close(c, torch.matmul(a, b))
+c = torch.zeros(M, K, dtype=torch.bfloat16).cuda()
+
+with profiler.profile(
+    activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], 
+    with_stack=True, 
+    ) as prof:
+
+    torch.profiler.itt.range_push("Forward Tiled Matmul")
+    c = matmul_cuda.fwd(a, b, c, 1, 0)
+    torch.profiler.itt.range_pop()
+    torch.profiler.itt.range_push("PyTorch Matmul")
+    c_ref = torch.matmul(a, b)
+    torch.profiler.itt.range_pop()
+    
+prof.export_chrome_trace("trace.json")
 print(c)
+print("a@b", c_ref)
+torch.testing.assert_close(c, c_ref)
+
+
+from typing import Callable
+from torch._inductor.runtime.benchmarking import benchmarker
+def benchmark_torch_function_in_microseconds(func: Callable, *args, **kwargs) -> float:
+    # warmup
+    for _ in range(5):
+        func(*args, **kwargs)
+    return benchmarker.benchmark_gpu(lambda: func(*args, **kwargs)) * 1e3
+
+
+for kernel_id in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}:
+    forward_time = benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, kernel_id, 0)
+    print(f"KERNEL {kernel_id}: {forward_time:.2f} us")

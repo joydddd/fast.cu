@@ -94,12 +94,12 @@ void set_params_mmprop(MM_kernel_params &params,
 // h: num_heads
 // h_k: num_heads_k
 // d: head_size
-std::vector<at::Tensor>
-mm_fwd(at::Tensor &a,   // (m, n)
+at::Tensor
+mm_fwd(const at::Tensor &a,   // (m, n)
         const at::Tensor &b,  // (n, k) 
         c10::optional<at::Tensor> &c_,  // (m, k)
-        int kernel_id, // kernel_id
-        int const sm_margin
+        int kernel_id=0, // kernel_id
+        int const sm_margin=0
         ) {
 
     int m = a.size(0);
@@ -111,8 +111,10 @@ mm_fwd(at::Tensor &a,   // (m, n)
     at::Tensor c;
     if (c_.has_value()) {
         c = c_.value();
+        // printf("Use existing c\n");
     } else {
         c = torch::empty({m, k}, opts.dtype(d_type));
+        // printf("Create new c\n");
     }
 
     // Otherwise the kernel will be launched from cuda:0 device
@@ -126,7 +128,7 @@ mm_fwd(at::Tensor &a,   // (m, n)
     run_matmul(params, stream);
 
     // return {out, softmax_lse};
-    return {c};
+    return c;
 }
 
 
