@@ -41,7 +41,39 @@ void cudaCheck(cudaError_t error, const char *file, int line) {
 #include "matmul.h"
 
 std::default_random_engine generator(69);
-cublasHandle_t cublas_handle;
+cublasHandle_t cublas_handle = NULL;
+
+static const char *_cudaGetErrorEnum(cublasStatus_t error)
+{
+    switch (error)
+    {
+        case CUBLAS_STATUS_SUCCESS:
+            return "CUBLAS_STATUS_SUCCESS";
+
+        case CUBLAS_STATUS_NOT_INITIALIZED:
+            return "CUBLAS_STATUS_NOT_INITIALIZED";
+
+        case CUBLAS_STATUS_ALLOC_FAILED:
+            return "CUBLAS_STATUS_ALLOC_FAILED";
+
+        case CUBLAS_STATUS_INVALID_VALUE:
+            return "CUBLAS_STATUS_INVALID_VALUE";
+
+        case CUBLAS_STATUS_ARCH_MISMATCH:
+            return "CUBLAS_STATUS_ARCH_MISMATCH";
+
+        case CUBLAS_STATUS_MAPPING_ERROR:
+            return "CUBLAS_STATUS_MAPPING_ERROR";
+
+        case CUBLAS_STATUS_EXECUTION_FAILED:
+            return "CUBLAS_STATUS_EXECUTION_FAILED";
+
+        case CUBLAS_STATUS_INTERNAL_ERROR:
+            return "CUBLAS_STATUS_INTERNAL_ERROR";
+    }
+
+    return "<unknown>";
+}
 void runCublasGemmBF16(int M, int N, int K, bf16 *A, bf16 *B, bf16 *C) {
   float alpha = 1, beta = 0;
   // C(column major) = A(row major) * B(column major)
@@ -49,7 +81,7 @@ void runCublasGemmBF16(int M, int N, int K, bf16 *A, bf16 *B, bf16 *C) {
     N, B, CUDA_R_16BF, K, &beta, C, CUDA_R_16BF, N, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
 
   if (status != CUBLAS_STATUS_SUCCESS) {
-    std::cout << "CUBLAS error: " << status << std::endl;
+    std::cout << "CUBLAS error: " << _cudaGetErrorEnum(status) << std::endl;
     exit(1);
   }
 }
@@ -117,7 +149,9 @@ void run_matmul(MM_kernel_params &params, cudaStream_t stream){
   // std::cerr << "A[-1] = " << __bfloat162float(A[params.M * params.N -1]) << std::endl;
   // std::cerr << "B[0] = " << __bfloat162float(B[0 ]) << std::endl;
   // std::cerr << "B[-1] = " << __bfloat162float(B[params.N * params.K -1]) << std::endl;
-
+  if (params.kernel_id == 0 && !cublas_handle){
+    cublasCreate(&cublas_handle);
+  } 
 
   run_kernel(params.kernel_id, params.M, params.N, params.K, (bf16*)params.A_ptr, (bf16*)params.B_ptr, (bf16*)params.C_ptr, (int*)params.DB_ptr);
 

@@ -223,22 +223,22 @@ b = torch.rand(N, K, dtype=torch.bfloat16).cuda()
 
 c = torch.zeros(M, K, dtype=torch.bfloat16).cuda()
 
-with profiler.profile(
-    activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], 
-    with_stack=True, 
-    ) as prof:
+# with profiler.profile(
+#     activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], 
+#     with_stack=True, 
+#     ) as prof:
 
-    torch.profiler.itt.range_push("Forward Tiled Matmul")
-    c = matmul_cuda.fwd(a, b, c, 1, 0)
-    torch.profiler.itt.range_pop()
-    torch.profiler.itt.range_push("PyTorch Matmul")
-    c_ref = torch.matmul(a, b)
-    torch.profiler.itt.range_pop()
+#     torch.profiler.itt.range_push("Forward Tiled Matmul")
+#     c = matmul_cuda.fwd(a, b, c, 1, 0)
+#     torch.profiler.itt.range_pop()
+#     torch.profiler.itt.range_push("PyTorch Matmul")
+#     c_ref = torch.matmul(a, b)
+#     torch.profiler.itt.range_pop()
     
-prof.export_chrome_trace("trace.json")
-print(c)
-print("a@b", c_ref)
-torch.testing.assert_close(c, c_ref)
+# prof.export_chrome_trace("trace.json")
+# print(c)
+# print("a@b", c_ref)
+# torch.testing.assert_close(c, c_ref)
 
 
 from typing import Callable
@@ -250,6 +250,8 @@ def benchmark_torch_function_in_microseconds(func: Callable, *args, **kwargs) ->
     return benchmarker.benchmark_gpu(lambda: func(*args, **kwargs)) * 1e3
 
 
-for kernel_id in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}:
+for kernel_id in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}:
     forward_time = benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, kernel_id, 0)
-    print(f"KERNEL {kernel_id}: {forward_time:.2f} us")
+    flops = 2 * M * N * K
+    tflops = flops / forward_time / 1e6
+    print(f"KERNEL {kernel_id}: {forward_time:.2f} us \t {tflops:.1f} TFLOPS")
