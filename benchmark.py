@@ -248,7 +248,8 @@ def benchmark_torch_function_in_microseconds(func: Callable, *args, **kwargs) ->
     for _ in range(5):
         func(*args, **kwargs)
     return benchmarker.benchmark_gpu(lambda: func(*args, **kwargs)) * 1e3
-
+# warmup the GPU: let it trottle if it needs to. 
+benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, 0, 0)
 
 for kernel_id in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}:
     forward_time = benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, kernel_id, 0)
