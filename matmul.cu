@@ -109,30 +109,52 @@ void run_kernel(int kernel_num, int M, int N, int K, bf16 *A, bf16 *B, bf16 *C, 
       runKernel3<128, 128, 64, 128>(M, N, K, A, B, C, DB);
       break;
     case 4:
-      runKernel4<128, 128, 64, 128*2, 5>(M, N, K, A, B, C, DB);
-      // runKernel4<128, 256, 64, 128*3, 3>(M, N, K, A, B, C, DB);
+    // <BM, BN, BK, NUM_THREADS, QSIZE> 
+    // QSIZE: tilesize 
+      runKernel4<128, 128, 64, 128*2, 3>(M, N, K, A, B, C, DB); // H100 PCIe
+      // runKernel4<128, 128, 64, 128*2, 5>(M, N, K, A, B, C, DB); // H100 SXM
       break;
     case 5:
-      runKernel5<128, 256, 64, 128*3, 3>(M, N, K, A, B, C, DB);
+      runKernel5<128, 256, 64, 128*3, 3>(M, N, K, A, B, C, DB); // H100 PCIe
+      // runKernel5<128, 256, 64, 128*3, 3>(M, N, K, A, B, C, DB); // H100 SXM
       break;
     case 6:
-      runKernel6<128, 256, 64, 128*3, 3, 114>(M, N, K, A, B, C, DB);
+      runKernel6<128, 256, 64, 128*3, 3, 114>(M, N, K, A, B, C, DB); // H100 SXM
       break;
     case 7:
-      runKernel7(M, N, K, A, B, C, DB);
+      runKernel7<128, 256, 64, 128*3, 3, 114>(M, N, K, A, B, C, DB);
       break;
     case 8:
-      runKernel8(M, N, K, A, B, C, DB);
+      runKernel8<128, 256, 64, 128*3, 3, 2, 1, 114>(M, N, K, A, B, C, DB);
       break;
     case 9:
-      runKernel9(M, N, K, A, B, C, DB);
+      runKernel9<128, 256, 64, 128*3, 3, 2, 1, 114>(M, N, K, A, B, C, DB);
       break;
     case 10:
-      runKernel10(M, N, K, A, B, C, DB);
+      runKernel10<128, 256, 64, 128*3, 3, 2, 1, 114>(M, N, K, A, B, C, DB);
       break;
     case 11:
-      runKernel11(M, N, K, A, B, C, DB);
+      runKernel11<128, 256, 64, 128*3, 3, 2, 1, 114>(M, N, K, A, B, C, DB);
       break;
+
+    // Tests:
+    case 12:
+        runKernel8<128, 256, 64, 128 * 3, 3, 1, 1, 96>(M, N, K, A, B, C, DB);
+        break;
+    case 13:
+        runKernel8<128, 256, 64, 128 * 3, 3, 2, 1, 96>(M, N, K, A, B, C, DB);
+        break;
+    case 14:
+        runKernel8<128, 256, 64, 128 * 3, 3, 4, 1, 96>(M, N, K, A, B, C, DB);
+        break;
+    case 15:
+        runKernel8<128, 256, 64, 128 * 3, 3, 8, 1, 96>(M, N, K, A, B, C, DB);
+        break;
+    case 16:
+        runKernel8<128, 256, 64, 128 * 3, 3, 16, 1, 96>(M, N, K, A, B, C, DB);
+        break;
+    default:
+        break;
   }
   cudaDeviceSynchronize();
 }

@@ -223,36 +223,41 @@ b = torch.rand(N, K, dtype=torch.bfloat16).cuda()
 
 c = torch.zeros(M, K, dtype=torch.bfloat16).cuda()
 
-# with profiler.profile(
-#     activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], 
-#     with_stack=True, 
-#     ) as prof:
+
+from typing import Callable
+from torch._inductor.runtime.benchmarking import benchmarker
+# def benchmark_torch_function_in_microseconds(func: Callable, *args, **kwargs) -> float:
+#     # warmup
+#     for _ in range(5):
+#         func(*args, **kwargs)
+#     return benchmarker.benchmark_gpu(lambda: func(*args, **kwargs), rep=1000) * 1e3
+# # warmup the GPU: let it trottle if it needs to. 
+# for i in range(10):
+#     benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, 0, 0)
+
+
+with profiler.profile(
+    activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], 
+    with_stack=True, 
+    ) as prof:
+    
+    for i in {7, 8, 12, 13, 14, 15, 16}:
+        c = matmul_cuda.fwd(a, b, c, i, 0)
+        # benchmarker.benchmark_gpu(lambda: matmul_cuda.fwd(a, b, c, i, 0), rep=0, warmup=0)
 
 #     torch.profiler.itt.range_push("Forward Tiled Matmul")
-#     c = matmul_cuda.fwd(a, b, c, 1, 0)
+#     c = matmul_cuda.fwd(a, b, c, 4, 0)
 #     torch.profiler.itt.range_pop()
-#     torch.profiler.itt.range_push("PyTorch Matmul")
 #     c_ref = torch.matmul(a, b)
-#     torch.profiler.itt.range_pop()
     
 # prof.export_chrome_trace("trace.json")
 # print(c)
 # print("a@b", c_ref)
 # torch.testing.assert_close(c, c_ref)
 
-
-from typing import Callable
-from torch._inductor.runtime.benchmarking import benchmarker
-def benchmark_torch_function_in_microseconds(func: Callable, *args, **kwargs) -> float:
-    # warmup
-    for _ in range(5):
-        func(*args, **kwargs)
-    return benchmarker.benchmark_gpu(lambda: func(*args, **kwargs)) * 1e3
-# warmup the GPU: let it trottle if it needs to. 
-benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, 0, 0)
-
-for kernel_id in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}:
-    forward_time = benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, kernel_id, 0)
-    flops = 2 * M * N * K
-    tflops = flops / forward_time / 1e6
-    print(f"KERNEL {kernel_id}: {forward_time:.2f} us \t {tflops:.1f} TFLOPS")
+# for kernel_id in { 8, 12, 13,14,15,16}:
+# # for kernel_id in {5, 6, 7, 8}:
+#     forward_time = benchmark_torch_function_in_microseconds(matmul_cuda.fwd, a, b, c, kernel_id, 0)
+#     flops = 2 * M * N * K
+#     tflops = flops / forward_time / 1e6
+#     print(f"KERNEL {kernel_id}: {forward_time:.2f} us \t {tflops:.1f} TFLOPS")
